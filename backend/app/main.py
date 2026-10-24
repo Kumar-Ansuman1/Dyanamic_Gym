@@ -6,6 +6,9 @@ from backend.app.api.routes.members import router as members_router
 from backend.app.api.routes.membership_plans import (
     router as membership_plans_router,
 )
+from backend.app.api.routes.subscriptions import (
+    router as subscriptions_router,
+)
 from backend.app.core.config import settings
 
 
@@ -17,7 +20,7 @@ app = FastAPI(
 app.include_router(auth_router, prefix="/api")
 app.include_router(members_router, prefix="/api")
 app.include_router(membership_plans_router, prefix="/api")
-
+app.include_router(subscriptions_router, prefix="/api")
 
 @app.get("/health", tags=["Health"])
 def health_check():
