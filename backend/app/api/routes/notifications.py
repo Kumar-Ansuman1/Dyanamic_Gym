@@ -1,7 +1,7 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 from backend.app.api.deps import get_current_user
@@ -42,18 +42,22 @@ def generate_notifications_endpoint(
 
 @router.get("", response_model=list[NotificationResponse])
 def list_notifications_endpoint(
+    response: Response,
     unread_only: bool = Query(default=False),
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[dict]:
-    return list_notifications(
+    items, total = list_notifications(
         db=db,
         unread_only=unread_only,
         skip=skip,
         limit=limit,
     )
+    response.headers["X-Total-Count"] = str(total)
+
+    return items
 
 
 @router.get(

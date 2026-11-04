@@ -4,6 +4,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from backend.app.db.session import count_rows
 from backend.app.models.membership_plan import MembershipPlan
 from backend.app.schemas.membership_plan import (
     MembershipPlanCreate,
@@ -35,7 +36,8 @@ def list_membership_plans(
     is_active: bool | None = None,
     skip: int = 0,
     limit: int = 20,
-) -> list[MembershipPlan]:
+) -> tuple[list[MembershipPlan], int]:
+    """One page of plans, plus how many match the filters in total."""
     statement = select(MembershipPlan)
 
     if search is not None:
@@ -49,6 +51,8 @@ def list_membership_plans(
             MembershipPlan.is_active.is_(is_active)
         )
 
+    total = count_rows(db, statement)
+
     statement = (
         statement
         .order_by(
@@ -59,7 +63,7 @@ def list_membership_plans(
         .limit(limit)
     )
 
-    return list(db.scalars(statement).all())
+    return list(db.scalars(statement).all()), total
 
 
 def get_membership_plan(

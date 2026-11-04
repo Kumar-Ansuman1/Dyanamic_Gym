@@ -38,3 +38,10 @@ class SubscriptionResponse(BaseModel):
     created_by: UUID
     created_at: datetime
     updated_at: datetime
+
+    # Display fields attached by the service (not columns), so the UI
+    # never has to look members up by UUID or add up allocations itself.
+    member_name: str = ""
+    member_code: str = ""
+    amount_paid: Decimal = Decimal("0")
+    balance_due: Decimal = Decimal("0")

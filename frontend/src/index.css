@@ -1,0 +1,101 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Archivo Variable', ui-sans-serif, system-ui, sans-serif;
+
+  /* Panel blacks: page, LED panel, raised row */
+  --color-ink: #0b0a0a;
+  --color-panel: #050404;
+  --color-raised: #151312;
+
+  /* 1px rules */
+  --color-rule: #2a2624;
+  --color-rule-strong: #403936;
+
+  /* Text: all three clear 4.5:1 on ink */
+  --color-fg: #ede8e3;
+  --color-fg-muted: #a8a09a;
+  --color-fg-faint: #857d78;
+
+  /* LED red: lit segment, primary action, urgency. Ghost = unlit segment. */
+  --color-led: #ff2a1a;
+  --color-led-bright: #ff4d3d;
+  --color-led-deep: #d81f10;
+  --color-led-ghost: #2b0d0a;
+
+  /* Square corners everywhere: no radius tokens exist. */
+  --radius-*: initial;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Faceplate label: the small expanded caps printed on a timer's housing. */
+@utility label-panel {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 650;
+  font-stretch: 125%;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html {
+    background: var(--color-ink);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    min-height: 100dvh;
+    font-size: 0.9375rem;
+    line-height: 1.5;
+  }
+
+  ::selection {
+    background: var(--color-led);
+    color: var(--color-ink);
+  }
+
+  input,
+  textarea,
+  select {
+    caret-color: var(--color-led);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-fg);
+    outline-offset: 2px;
+  }
+
+  * {
+    scrollbar-color: var(--color-rule-strong) transparent;
+    scrollbar-width: thin;
+  }
+
+  a {
+    text-underline-offset: 0.25em;
+    text-decoration-thickness: 1px;
+  }
+
+  input[type='date']::-webkit-calendar-picker-indicator {
+    filter: invert(0.85);
+    cursor: pointer;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
