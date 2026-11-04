@@ -1,0 +1,26 @@
+{
+  "projectId": "bf498002-c035-4f4a-bf27-048615af5197",
+  "shape": "package",
+  "pkg": "frontend",
+  "globalName": "DynamicGymUI",
+  "buildCmd": "npm run build:ds",
+  "cssEntry": "dist-ds/styles.css",
+  "extraFonts": ["node_modules/@fontsource-variable/archivo/wdth.css"],
+  "docsDir": ".design-sync/docs",
+  "readmeHeader": ".design-sync/conventions.md",
+  "provider": { "component": "Surface", "props": { "style": { "padding": 24 } } },
+  "overrides": {
+    "ExpiryRow": { "cardMode": "column" },
+    "Wordmark": { "cardMode": "column" },
+    "DaysLeft": { "cardMode": "column" },
+    "SegmentDisplay": { "cardMode": "column" }
+  },
+  "dtsPropsFor": {
+    "Surface": "children?: React.ReactNode; className?: string; style?: React.CSSProperties;",
+    "Button": "variant?: \"primary\" | \"secondary\" | \"danger\" | \"quiet\"; size?: \"md\" | \"sm\"; loading?: boolean; disabled?: boolean; type?: \"button\" | \"submit\" | \"reset\"; onClick?: (event: React.MouseEvent<HTMLButtonElement>) => void; children?: React.ReactNode; className?: string; \"aria-label\"?: string; \"aria-expanded\"?: boolean; \"aria-controls\"?: string;",
+    "TextField": "label: string; hint?: string; error?: string; prefix?: string; value?: string; defaultValue?: string; onChange?: (event: React.ChangeEvent<HTMLInputElement>) => void; placeholder?: string; type?: \"text\" | \"email\" | \"tel\" | \"date\" | \"number\" | \"password\" | \"search\"; inputMode?: \"text\" | \"decimal\" | \"numeric\" | \"tel\" | \"email\" | \"search\"; name?: string; id?: string; required?: boolean; disabled?: boolean; autoComplete?: string;",
+    "SelectField": "label: string; hint?: string; error?: string; value?: string; defaultValue?: string; onChange?: (event: React.ChangeEvent<HTMLSelectElement>) => void; name?: string; id?: string; required?: boolean; disabled?: boolean; children: React.ReactNode;",
+    "Segmented": "label: string; name: string; options: readonly { value: string; label: string }[]; value: string; onChange: (value: string) => void;",
+    "ExpiryRow": "id?: string; error?: string | null; name: string; code: string; planName: string; planId: string; endDate: string; daysLeft: number; plans: { id: string; name: string; price: string }[]; open: boolean; dimmed?: boolean; pending?: boolean; onToggle: () => void; onRenew: (input: { planId: string; amount: string; method: \"cash\" | \"upi\" | \"bank_transfer\" | \"card\" | \"other\"; reference: string }) => void;"
+  }
+}

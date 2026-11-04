@@ -3,6 +3,7 @@ import asyncio
 from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from backend.app.api.routes.auth import router as auth_router
 from backend.app.api.routes.members import router as members_router
@@ -36,6 +37,15 @@ app = FastAPI(
     title=settings.APP_NAME,
     debug=settings.DEBUG,
     lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    # List totals for pagination; Location points a 409 at the record it clashed with.
+    expose_headers=["X-Total-Count", "Location"],
 )
 
 app.include_router(auth_router, prefix="/api")

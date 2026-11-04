@@ -5,6 +5,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from backend.app.db.session import count_rows
 from backend.app.models.enums import PaymentStatus, SubscriptionStatus
 from backend.app.models.member import Member
 from backend.app.models.payment import Payment
@@ -133,7 +134,8 @@ def list_payments(
     payment_status: PaymentStatus | None = None,
     skip: int = 0,
     limit: int = 20,
-) -> list[Payment]:
+) -> tuple[list[Payment], int]:
+    """One page of payments, plus how many match the filters in total."""
     statement = select(Payment)
 
     if member_id is not None:
@@ -142,6 +144,8 @@ def list_payments(
     if payment_status is not None:
         statement = statement.where(Payment.status == payment_status)
 
+    total = count_rows(db, statement)
+
     statement = (
         statement
         .order_by(Payment.paid_at.desc(), Payment.id)
@@ -149,7 +153,25 @@ def list_payments(
         .limit(limit)
     )
 
-    return list(db.scalars(statement).all())
+    return list(db.scalars(statement).all()), total
+
+
+def attach_member_fields(db: Session, payments: list[Payment]) -> list[Payment]:
+    """Attach member name/code read by PaymentResponse."""
+    member_ids = {payment.member_id for payment in payments}
+    members = {
+        member.id: member
+        for member in db.scalars(
+            select(Member).where(Member.id.in_(member_ids))
+        )
+    } if member_ids else {}
+
+    for payment in payments:
+        member = members.get(payment.member_id)
+        payment.member_name = member.full_name if member else ""
+        payment.member_code = member.member_code if member else ""
+
+    return payments
 
 
 def get_payment(db: Session, payment_id: UUID) -> Payment | None:

@@ -1,7 +1,7 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 from backend.app.api.deps import get_current_user
@@ -15,6 +15,7 @@ from backend.app.schemas.payment import (
     PaymentResponse,
 )
 from backend.app.services.payment_service import (
+    attach_member_fields,
     create_payment,
     get_payment,
     list_payment_allocations,
@@ -36,11 +37,12 @@ def create_payment_endpoint(
     current_user: User = Depends(get_current_user),
 ) -> Payment:
     try:
-        return create_payment(
+        payment = create_payment(
             db=db,
             payment_data=payment_data,
             current_user=current_user,
         )
+        return attach_member_fields(db, [payment])[0]
     except LookupError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -55,6 +57,7 @@ def create_payment_endpoint(
 
 @router.get("", response_model=list[PaymentResponse])
 def list_payments_endpoint(
+    response: Response,
     member_id: UUID | None = Query(default=None),
     payment_status: PaymentStatus | None = Query(
         default=None,
@@ -65,13 +68,16 @@ def list_payments_endpoint(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[Payment]:
-    return list_payments(
+    payments, total = list_payments(
         db=db,
         member_id=member_id,
         payment_status=payment_status,
         skip=skip,
         limit=limit,
     )
+    response.headers["X-Total-Count"] = str(total)
+
+    return attach_member_fields(db, payments)
 
 
 @router.get(
@@ -91,6 +97,7 @@ def get_payment_endpoint(
             detail="Payment not found.",
         )
 
+    attach_member_fields(db, [payment])
     response = PaymentResponse.model_validate(payment).model_dump()
     response["allocations"] = list_payment_allocations(db, payment.id)
 

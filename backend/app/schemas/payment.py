@@ -47,6 +47,10 @@ class PaymentResponse(BaseModel):
     recorded_by: UUID
     notes: str | None
 
+    # Attached by the service (not columns), so lists can name the member.
+    member_name: str = ""
+    member_code: str = ""
+
 
 class PaymentDetailResponse(PaymentResponse):
     allocations: list[PaymentAllocationResponse] = Field(default_factory=list)

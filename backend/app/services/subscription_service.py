@@ -1,14 +1,18 @@
 
 import calendar
 from datetime import date, timedelta
+from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session, aliased
 
-from backend.app.models.enums import SubscriptionStatus
+from backend.app.db.session import count_rows
+from backend.app.models.enums import PaymentStatus, SubscriptionStatus
 from backend.app.models.member import Member
 from backend.app.models.membership_plan import MembershipPlan
+from backend.app.models.payment import Payment
+from backend.app.models.payment_allocation import PaymentAllocation
 from backend.app.models.subscription import Subscription
 from backend.app.models.user import User
 from backend.app.schemas.subscription import (
@@ -136,13 +140,81 @@ def create_subscription(
     return subscription
 
 
+def _amount_paid():
+    """Sum of recorded-payment allocations for the enclosing Subscription row."""
+    return (
+        select(func.coalesce(func.sum(PaymentAllocation.amount), 0))
+        .join(Payment, Payment.id == PaymentAllocation.payment_id)
+        .where(
+            PaymentAllocation.subscription_id == Subscription.id,
+            Payment.status == PaymentStatus.RECORDED,
+        )
+        .correlate(Subscription)
+        .scalar_subquery()
+    )
+
+
+def attach_display_fields(
+    db: Session,
+    subscriptions: list[Subscription],
+) -> list[Subscription]:
+    """Attach member name/code and paid/balance figures read by SubscriptionResponse."""
+    if not subscriptions:
+        return subscriptions
+
+    member_ids = {subscription.member_id for subscription in subscriptions}
+    members = {
+        member.id: member
+        for member in db.scalars(
+            select(Member).where(Member.id.in_(member_ids))
+        )
+    }
+    paid = dict(
+        db.execute(
+            select(
+                PaymentAllocation.subscription_id,
+                func.sum(PaymentAllocation.amount),
+            )
+            .join(Payment, Payment.id == PaymentAllocation.payment_id)
+            .where(
+                PaymentAllocation.subscription_id.in_(
+                    [subscription.id for subscription in subscriptions]
+                ),
+                Payment.status == PaymentStatus.RECORDED,
+            )
+            .group_by(PaymentAllocation.subscription_id)
+        ).all()
+    )
+
+    for subscription in subscriptions:
+        member = members.get(subscription.member_id)
+        amount_paid = Decimal(paid.get(subscription.id) or 0)
+        subscription.member_name = member.full_name if member else ""
+        subscription.member_code = member.member_code if member else ""
+        subscription.amount_paid = amount_paid
+        # A cancelled subscription can't take payments, so nothing is owed on it.
+        subscription.balance_due = (
+            Decimal("0")
+            if subscription.status == SubscriptionStatus.CANCELLED
+            else max(Decimal(subscription.price) - amount_paid, Decimal("0"))
+        )
+
+    return subscriptions
+
+
 def list_subscriptions(
     db: Session,
     member_id: UUID | None = None,
     subscription_status: SubscriptionStatus | None = None,
+    ends_from: date | None = None,
+    ends_to: date | None = None,
+    not_renewed: bool = False,
+    has_balance: bool = False,
+    sort: str = "recent",
     skip: int = 0,
     limit: int = 20,
-) -> list[Subscription]:
+) -> tuple[list[Subscription], int]:
+    """One page of subscriptions, plus how many match the filters in total."""
     synchronize_statuses(db)
 
     statement = select(Subscription)
@@ -155,14 +227,51 @@ def list_subscriptions(
             Subscription.status == subscription_status
         )
 
-    statement = (
-        statement
-        .order_by(Subscription.created_at.desc(), Subscription.id)
-        .offset(skip)
-        .limit(limit)
-    )
+    if ends_from is not None:
+        statement = statement.where(Subscription.end_date >= ends_from)
 
-    return list(db.scalars(statement).all())
+    if ends_to is not None:
+        statement = statement.where(Subscription.end_date <= ends_to)
+
+    if not_renewed:
+        # Drop subscriptions the member has already moved past: a renewal
+        # or any other current subscription that ends later.
+        later = aliased(Subscription)
+        statement = statement.where(
+            ~select(later.id)
+            .where(
+                later.member_id == Subscription.member_id,
+                later.id != Subscription.id,
+                later.status.in_(
+                    (SubscriptionStatus.ACTIVE, SubscriptionStatus.PENDING)
+                ),
+                later.end_date > Subscription.end_date,
+            )
+            .exists()
+        )
+
+    if has_balance:
+        statement = statement.where(
+            Subscription.status != SubscriptionStatus.CANCELLED,
+            Subscription.price > _amount_paid(),
+        )
+
+    total = count_rows(db, statement)
+
+    if sort == "ending":
+        statement = statement.order_by(
+            Subscription.end_date.asc(),
+            Subscription.id,
+        )
+    else:
+        statement = statement.order_by(
+            Subscription.created_at.desc(),
+            Subscription.id,
+        )
+
+    statement = statement.offset(skip).limit(limit)
+
+    return list(db.scalars(statement).all()), total
 
 
 def get_subscription(

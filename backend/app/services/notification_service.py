@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
+from backend.app.db.session import count_rows
 from backend.app.models.enums import (
     NotificationChannel,
     NotificationStatus,
@@ -87,7 +88,8 @@ def list_notifications(
     unread_only: bool = False,
     skip: int = 0,
     limit: int = 20,
-) -> list[dict]:
+) -> tuple[list[dict], int]:
+    """One page of dashboard reminders, plus how many match in total."""
     statement = (
         select(
             Notification,
@@ -107,6 +109,8 @@ def list_notifications(
 
     if unread_only:
         statement = statement.where(Notification.read_at.is_(None))
+
+    total = count_rows(db, statement)
 
     rows = db.execute(
         statement
@@ -146,7 +150,7 @@ def list_notifications(
             }
         )
 
-    return items
+    return items, total
 
 
 def get_unread_notification_count(db: Session) -> int:

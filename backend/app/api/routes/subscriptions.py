@@ -1,7 +1,9 @@
 
+from datetime import date
+from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 from backend.app.api.deps import get_current_user
@@ -15,6 +17,7 @@ from backend.app.schemas.subscription import (
     SubscriptionResponse,
 )
 from backend.app.services.subscription_service import (
+    attach_display_fields,
     cancel_subscription,
     create_subscription,
     get_subscription,
@@ -37,11 +40,12 @@ def create_subscription_endpoint(
     current_user: User = Depends(get_current_user),
 ) -> Subscription:
     try:
-        return create_subscription(
+        subscription = create_subscription(
             db=db,
             subscription_data=subscription_data,
             current_user=current_user,
         )
+        return attach_display_fields(db, [subscription])[0]
     except LookupError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -56,23 +60,43 @@ def create_subscription_endpoint(
 
 @router.get("", response_model=list[SubscriptionResponse])
 def list_subscriptions_endpoint(
+    response: Response,
     member_id: UUID | None = Query(default=None),
     subscription_status: SubscriptionStatus | None = Query(
         default=None,
         alias="status",
     ),
+    ends_from: date | None = Query(default=None),
+    ends_to: date | None = Query(default=None),
+    not_renewed: bool = Query(
+        default=False,
+        description="Hide subscriptions the member has already renewed or replaced.",
+    ),
+    has_balance: bool = Query(
+        default=False,
+        description="Only subscriptions with money still due.",
+    ),
+    sort: Literal["recent", "ending"] = Query(default="recent"),
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[Subscription]:
-    return list_subscriptions(
+    subscriptions, total = list_subscriptions(
         db=db,
         member_id=member_id,
         subscription_status=subscription_status,
+        ends_from=ends_from,
+        ends_to=ends_to,
+        not_renewed=not_renewed,
+        has_balance=has_balance,
+        sort=sort,
         skip=skip,
         limit=limit,
     )
+    response.headers["X-Total-Count"] = str(total)
+
+    return attach_display_fields(db, subscriptions)
 
 
 @router.get(
@@ -92,7 +116,7 @@ def get_subscription_endpoint(
             detail="Subscription not found.",
         )
 
-    return subscription
+    return attach_display_fields(db, [subscription])[0]
 
 
 @router.post(
@@ -130,7 +154,7 @@ def renew_subscription_endpoint(
             detail="Subscription not found.",
         )
 
-    return subscription
+    return attach_display_fields(db, [subscription])[0]
 
 
 @router.patch(
@@ -159,4 +183,4 @@ def cancel_subscription_endpoint(
             detail="Subscription not found.",
         )
 
-    return subscription
+    return attach_display_fields(db, [subscription])[0]

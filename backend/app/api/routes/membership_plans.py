@@ -1,7 +1,7 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -54,6 +54,7 @@ def create_plan(
 
 @router.get("", response_model=list[MembershipPlanResponse])
 def list_plans(
+    response: Response,
     search: str | None = Query(
         default=None,
         min_length=1,
@@ -67,13 +68,16 @@ def list_plans(
 ) -> list[MembershipPlan]:
     """Search, filter and paginate membership plans."""
 
-    return list_membership_plans(
+    plans, total = list_membership_plans(
         db=db,
         search=search,
         is_active=is_active,
         skip=skip,
         limit=limit,
     )
+    response.headers["X-Total-Count"] = str(total)
+
+    return plans
 
 
 @router.get(

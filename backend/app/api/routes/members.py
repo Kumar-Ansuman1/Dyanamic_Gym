@@ -1,13 +1,13 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import or_, select
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from backend.app.api.deps import get_current_user
-from backend.app.db.session import get_db
+from backend.app.db.session import count_rows, get_db
 from backend.app.models.member import Member
 from backend.app.models.user import User
 from backend.app.schemas.member import (
@@ -38,6 +38,24 @@ def register_member(
 ) -> Member:
     """Register a new gym member. Requires owner authentication."""
 
+    # Same digits in any spacing ("98201 44321", "9820144321") is the same phone.
+    digits = "".join(ch for ch in member_data.phone if ch.isdigit())
+    existing = db.scalar(
+        select(Member)
+        .where(func.regexp_replace(Member.phone, r"\D", "", "g") == digits)
+        .limit(1)
+    ) if digits else None
+
+    if existing is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"{existing.full_name} ({existing.member_code}) is already "
+                "registered with this phone number."
+            ),
+            headers={"Location": f"/api/members/{existing.id}"},
+        )
+
     return create_member(
         db=db,
         member_data=member_data,
@@ -47,6 +65,7 @@ def register_member(
 
 @router.get("", response_model=list[MemberResponse])
 def list_members(
+    response: Response,
     search: str | None = Query(default=None, min_length=1, max_length=100),
     is_active: bool | None = Query(default=None),
     skip: int = Query(default=0, ge=0),
@@ -71,6 +90,8 @@ def list_members(
 
     if is_active is not None:
         statement = statement.where(Member.is_active.is_(is_active))
+
+    response.headers["X-Total-Count"] = str(count_rows(db, statement))
 
     statement = (
         statement
